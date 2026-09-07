@@ -362,8 +362,7 @@ const ICON_CHECK = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/>
 const ICON_UP = '<svg class="icon" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>';
 const ICON_DOWN = '<svg class="icon" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
 const ICON_CLOSE = '<svg class="icon" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>';
-const ICON_COPY = '<svg viewBox="0 0 24 24" style="width:14px;height:14px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
-const ICON_CHECK_SM = '<svg viewBox="0 0 24 24" style="width:14px;height:14px;"><polyline points="20 6 9 17 4 12"/></svg>';
+const ICON_OPEN = '<svg viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
 
 let state = { lobby: [], players: ["", "", "", ""], picks: {}, started: false };
 let lastStateStr = "";
@@ -434,7 +433,7 @@ function buildLinksHtml(){
       html += '<div class="link-row"><span class="lname">' + cpuBadge() + name + '</span><span class="cpu-note">Picks automatically</span></div>';
     } else {
       const link = base + '?as=' + (i+1);
-      html += '<div class="link-row"><span class="lname">' + name + '</span><input type="text" readonly value="' + link + '" onclick="this.select()"><button class="copy-btn" onclick="copyLink(this, \'' + link + '\')">' + ICON_COPY + ' Copy</button></div>';
+      html += '<div class="link-row"><span class="lname">' + name + '</span><a class="copy-btn" href="' + link + '" target="_blank" rel="noopener">' + ICON_OPEN + ' Open</a></div>';
     }
   });
   return html;
@@ -666,17 +665,6 @@ async function resetDraft(){
 function setBusy(b){
   busy = b;
   document.getElementById('startBtn').disabled = b || !(state.lobby && state.lobby.length === 4);
-}
-
-function copyLink(btn, link){
-  navigator.clipboard.writeText(link).then(() => {
-    const orig = btn.innerHTML;
-    btn.innerHTML = ICON_CHECK_SM + " Copied";
-    btn.classList.add('copied');
-    setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 1500);
-  }).catch(() => {
-    alert("Couldn't copy automatically — tap the link field and copy manually.");
-  });
 }
 
 function totalTeams(){
