@@ -54,6 +54,32 @@
   }
   .you-banner strong{color:var(--gold); font-family:'Teko',sans-serif; font-size:1.15rem; letter-spacing:0.02em;}
 
+  .links-panel{border-color:var(--turf-bright);}
+  .links-panel .links-title{font-family:'Teko',sans-serif; font-size:1.3rem; color:var(--gold); margin-bottom:8px;}
+  .links-panel .link-row{
+    display:flex; align-items:center; gap:8px; margin-top:6px; font-size:0.85rem;
+  }
+  .links-panel .link-row .lname{width:110px; flex-shrink:0; color:var(--chalk-dim);}
+  .links-panel .link-row input[type=text]{
+    flex:1; background:var(--bg); border:1px solid var(--line); color:var(--chalk);
+    padding:6px 8px; border-radius:4px; font-size:0.8rem; font-family:'Inter',sans-serif;
+  }
+  .links-panel .link-row button{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--chalk);
+    padding:6px 10px; border-radius:4px; font-size:0.78rem; cursor:pointer; flex-shrink:0;
+  }
+  .links-panel .link-row button:hover{border-color:var(--gold); color:var(--gold);}
+  .links-panel .toggle{
+    background:none; border:none; color:var(--chalk-dim); font-size:0.78rem; cursor:pointer;
+    text-decoration:underline; padding:0; margin-top:6px;
+  }
+
+  .setup-row .remove-btn{
+    background:transparent; border:1px solid var(--line); color:var(--afc);
+    width:26px; height:26px; border-radius:4px; cursor:pointer; font-size:0.85rem; flex-shrink:0;
+  }
+  .setup-row .remove-btn:hover{border-color:var(--afc); background:#2a1a16;}
+
   .team-btn.waiting{
     opacity:0.55; cursor:not-allowed;
   }
@@ -204,18 +230,27 @@
     alongside this file.
   </div>
 
-  <!-- SETUP SCREEN -->
+  <!-- LOBBY SCREEN -->
   <div id="setup" class="setup">
-    <h2>Set the roster</h2>
-    <p>Enter the four players. Draft order follows the list top to bottom. It's a snake draft: round 1 goes 1→2→3→4, round 2 flips to 4→3→2→1, round 3 back to 1→2→3→4, and so on.</p>
+    <h2>Lobby</h2>
+    <p id="lobbyIntro">Enter your name and tap Join. Once four players have joined, anyone can reorder the list, randomize it, and start the draft. It's a snake draft: round 1 goes 1→2→3→4, round 2 flips to 4→3→2→1, and so on.</p>
+
+    <div id="joinRow" style="display:flex; gap:8px; margin-bottom:16px;">
+      <input type="text" id="joinNameInput" placeholder="Your name" style="flex:1; background:var(--bg); border:1px solid var(--line); color:var(--chalk); padding:10px 12px; border-radius:4px; font-size:1rem; font-family:'Inter',sans-serif;">
+      <button class="primary" id="joinBtn" style="margin-top:0; width:auto; padding:10px 18px;" onclick="joinLobby()">Join</button>
+    </div>
+    <div id="joinedNote" class="order-note hidden"></div>
+
     <div id="setupRows"></div>
-    <button class="shuffle" onclick="randomizeOrder()">🎲 Randomize order</button>
-    <button class="primary" id="startBtn" onclick="startDraft()">Start the draft</button>
-    <div class="order-note">Use the arrows to reorder players, or randomize for a fair draw. Order reverses each round (snake draft) until all 32 teams are gone — 8 rounds each.</div>
+    <div id="lobbyWaiting" class="order-note"></div>
+
+    <button class="shuffle" id="shuffleBtn" onclick="randomizeOrder()">🎲 Randomize order</button>
+    <button class="primary" id="startBtn" onclick="startDraft()" disabled>Start the draft</button>
   </div>
 
   <!-- DRAFT SCREEN -->
   <div id="draftScreen" class="hidden">
+    <div id="linksPanel" class="you-banner hidden"></div>
     <div id="youBanner" class="you-banner hidden"></div>
     <div id="turnBanner" class="turn-banner">
       <div>
@@ -265,8 +300,7 @@ const TEAM_COLOR = {
   "Arizona Cardinals":"#97233f","Los Angeles Rams":"#003594","San Francisco 49ers":"#aa0000","Seattle Seahawks":"#69be28"
 };
 
-let state = { players: ["", "", "", ""], picks: {}, started: false };
-let setupNames = ["", "", "", ""];
+let state = { lobby: [], players: ["", "", "", ""], picks: {}, started: false };
 let lastStateStr = "";
 let busy = false;
 
@@ -302,50 +336,116 @@ async function refreshState(silent){
   }
 }
 
+let myName = null; // the name this device joined the lobby with, if any
+
 function renderSetupRows(){
   const container = document.getElementById('setupRows');
   container.innerHTML = "";
-  setupNames.forEach((name, i) => {
+  const lobby = state.lobby || [];
+  lobby.forEach((name, i) => {
     const row = document.createElement('div');
     row.className = "setup-row";
     row.innerHTML =
       '<span class="rank">' + (i+1) + '</span>' +
-      '<input type="text" placeholder="Player name" value="' + name.replace(/"/g,'&quot;') + '" oninput="setupNames[' + i + ']=this.value">' +
+      '<span style="flex:1">' + name + (name === myName ? ' <span style="color:var(--gold); font-size:0.78rem;">(you)</span>' : '') + '</span>' +
       '<div class="arrows">' +
-        '<button ' + (i===0 ? 'disabled' : '') + ' onclick="moveSetupRow(' + i + ',-1)" aria-label="Move up">▲</button>' +
-        '<button ' + (i===3 ? 'disabled' : '') + ' onclick="moveSetupRow(' + i + ',1)" aria-label="Move down">▼</button>' +
-      '</div>';
+        '<button ' + (i===0 ? 'disabled' : '') + ' onclick="moveLobbyRow(' + i + ',-1)" aria-label="Move up">▲</button>' +
+        '<button ' + (i===lobby.length-1 ? 'disabled' : '') + ' onclick="moveLobbyRow(' + i + ',1)" aria-label="Move down">▼</button>' +
+      '</div>' +
+      '<button class="remove-btn" onclick="removeFromLobby(' + i + ')" aria-label="Remove">✕</button>';
     container.appendChild(row);
   });
+
+  const waiting = document.getElementById('lobbyWaiting');
+  const startBtn = document.getElementById('startBtn');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  const joinRow = document.getElementById('joinRow');
+
+  if(lobby.length >= 4){
+    waiting.textContent = "Four players are in — reorder if you want, or start the draft.";
+    startBtn.disabled = false;
+    shuffleBtn.style.display = "";
+  } else {
+    waiting.textContent = (4 - lobby.length) + " more player" + (4 - lobby.length === 1 ? "" : "s") + " needed to join.";
+    startBtn.disabled = true;
+    shuffleBtn.style.display = "none";
+  }
+  joinRow.style.display = (lobby.length >= 4 || lobby.includes(myName)) ? "none" : "flex";
 }
 
-function moveSetupRow(i, dir){
-  syncSetupInputs();
+async function joinLobby(){
+  const input = document.getElementById('joinNameInput');
+  const name = input.value.trim();
+  if(!name){ alert("Enter your name first."); return; }
+  if(!backendConfigured()){
+    alert("This page isn't connected to a backend yet. See the setup instructions.");
+    return;
+  }
+  setBusy(true);
+  try{
+    const updated = await callBackend({ action: "join", name: name });
+    state = updated;
+    lastStateStr = JSON.stringify(updated);
+    myName = name;
+    const note = document.getElementById('joinedNote');
+    note.textContent = "You're in as " + name + ".";
+    note.classList.remove('hidden');
+  } catch(e){
+    alert("Couldn't reach the backend. Check your internet connection and try again.");
+  } finally {
+    setBusy(false);
+    render();
+  }
+}
+
+async function removeFromLobby(i){
+  setBusy(true);
+  try{
+    const updated = await callBackend({ action: "removeFromLobby", index: i });
+    state = updated;
+    lastStateStr = JSON.stringify(updated);
+  } catch(e){
+    alert("Couldn't reach the backend. Check your internet connection and try again.");
+  } finally {
+    setBusy(false);
+    render();
+  }
+}
+
+async function pushLobbyOrder(newOrder){
+  setBusy(true);
+  try{
+    const updated = await callBackend({ action: "reorderLobby", order: JSON.stringify(newOrder) });
+    state = updated;
+    lastStateStr = JSON.stringify(updated);
+  } catch(e){
+    alert("Couldn't reach the backend. Check your internet connection and try again.");
+  } finally {
+    setBusy(false);
+    render();
+  }
+}
+
+function moveLobbyRow(i, dir){
+  const lobby = (state.lobby || []).slice();
   const j = i + dir;
-  if(j < 0 || j > 3) return;
-  [setupNames[i], setupNames[j]] = [setupNames[j], setupNames[i]];
-  renderSetupRows();
-}
-
-function syncSetupInputs(){
-  const inputs = document.querySelectorAll('#setupRows input[type=text]');
-  inputs.forEach((el, i) => { setupNames[i] = el.value; });
+  if(j < 0 || j >= lobby.length) return;
+  [lobby[i], lobby[j]] = [lobby[j], lobby[i]];
+  pushLobbyOrder(lobby);
 }
 
 function randomizeOrder(){
-  syncSetupInputs();
-  for(let i = setupNames.length - 1; i > 0; i--){
+  const lobby = (state.lobby || []).slice();
+  for(let i = lobby.length - 1; i > 0; i--){
     const j = Math.floor(Math.random() * (i+1));
-    [setupNames[i], setupNames[j]] = [setupNames[j], setupNames[i]];
+    [lobby[i], lobby[j]] = [lobby[j], lobby[i]];
   }
-  renderSetupRows();
+  pushLobbyOrder(lobby);
 }
 
 async function startDraft(){
-  syncSetupInputs();
-  const names = setupNames.map(n => n.trim());
-  if(names.some(n => !n)){
-    alert("Please fill in all four player names before starting.");
+  if(!state.lobby || state.lobby.length !== 4){
+    alert("Need exactly four players in the lobby first.");
     return;
   }
   if(!backendConfigured()){
@@ -354,7 +454,7 @@ async function startDraft(){
   }
   setBusy(true);
   try{
-    const updated = await callBackend({ action: "start", players: JSON.stringify(names) });
+    const updated = await callBackend({ action: "start" });
     state = updated;
     lastStateStr = JSON.stringify(updated);
   } catch(e){
@@ -386,14 +486,15 @@ async function draftTeam(team){
 }
 
 async function resetDraft(){
-  if(!confirm("Reset the whole draft? This clears all picks and player names for everyone.")) return;
+  if(!confirm("Reset the whole draft? This clears all picks and the lobby for everyone.")) return;
   setBusy(true);
   try{
     const updated = await callBackend({ action: "reset" });
     state = updated;
     lastStateStr = JSON.stringify(updated);
-    setupNames = ["", "", "", ""];
-    renderSetupRows();
+    myName = null;
+    document.getElementById('joinNameInput').value = "";
+    document.getElementById('joinedNote').classList.add('hidden');
   } catch(e){
     alert("Couldn't reach the backend. Check your internet connection and try again.");
   } finally {
@@ -404,7 +505,17 @@ async function resetDraft(){
 
 function setBusy(b){
   busy = b;
-  document.getElementById('startBtn').disabled = b;
+  document.getElementById('startBtn').disabled = b || !(state.lobby && state.lobby.length === 4);
+}
+
+function copyLink(btn, link){
+  navigator.clipboard.writeText(link).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  }).catch(() => {
+    alert("Couldn't copy automatically — tap the link field and copy manually.");
+  });
 }
 
 function totalTeams(){
@@ -435,6 +546,7 @@ function render(){
   if(!state.started){
     setupEl.classList.remove('hidden');
     draftEl.classList.add('hidden');
+    renderSetupRows();
     return;
   }
   setupEl.classList.add('hidden');
@@ -445,16 +557,31 @@ function render(){
   const done = pickIdx >= total;
   const myTurn = (myPlayerIndex === null) ? true : (!done && currentPlayerIdx() === myPlayerIndex);
 
+  const linksPanel = document.getElementById('linksPanel');
+  if(myPlayerIndex === null){
+    linksPanel.classList.remove('hidden');
+    linksPanel.className = "you-banner links-panel";
+    const base = window.location.origin + window.location.pathname;
+    let html = '<div class="links-title">Player links</div><div style="font-size:0.82rem; color:var(--chalk-dim); margin-bottom:4px;">Send each person their own link so their screen only lets them pick on their turn.</div>';
+    state.players.forEach((name, i) => {
+      const link = base + '?as=' + (i+1);
+      html += '<div class="link-row"><span class="lname">' + name + '</span><input type="text" readonly value="' + link + '" onclick="this.select()"><button onclick="copyLink(this, \'' + link + '\')">Copy</button></div>';
+    });
+    linksPanel.innerHTML = html;
+  } else {
+    linksPanel.classList.add('hidden');
+  }
+
   const youBanner = document.getElementById('youBanner');
   if(myPlayerIndex !== null){
     youBanner.classList.remove('hidden');
-    const myName = state.players[myPlayerIndex] || ('Player ' + (myPlayerIndex+1));
+    const myDisplayName = state.players[myPlayerIndex] || ('Player ' + (myPlayerIndex+1));
     if(done){
-      youBanner.innerHTML = 'You drafted as <strong>' + myName + '</strong>';
+      youBanner.innerHTML = 'You drafted as <strong>' + myDisplayName + '</strong>';
     } else if(myTurn){
-      youBanner.innerHTML = "It's your turn, <strong>" + myName + '</strong> — pick a team below.';
+      youBanner.innerHTML = "It's your turn, <strong>" + myDisplayName + '</strong> — pick a team below.';
     } else {
-      youBanner.innerHTML = 'You\'re drafting as <strong>' + myName + '</strong> — waiting for your turn.';
+      youBanner.innerHTML = 'You\'re drafting as <strong>' + myDisplayName + '</strong> — waiting for your turn.';
     }
   } else {
     youBanner.classList.add('hidden');
@@ -542,7 +669,6 @@ function render(){
   }
 }
 
-renderSetupRows();
 render();
 refreshState(false);
 setInterval(() => refreshState(true), 4000);
