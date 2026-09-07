@@ -47,6 +47,18 @@
     padding:10px 14px; font-size:0.85rem; margin-bottom:18px;
   }
 
+  .you-banner{
+    background:var(--panel-2); border:1px solid var(--gold); border-radius:6px;
+    padding:10px 16px; margin-bottom:14px; font-size:0.9rem; color:var(--chalk);
+    display:flex; align-items:center; gap:8px;
+  }
+  .you-banner strong{color:var(--gold); font-family:'Teko',sans-serif; font-size:1.15rem; letter-spacing:0.02em;}
+
+  .team-btn.waiting{
+    opacity:0.55; cursor:not-allowed;
+  }
+  .team-btn.waiting:hover{ border-color:var(--line) !important; background:var(--panel-2) !important; }
+
   /* ---------- Setup screen ---------- */
   .setup{
     background:var(--panel); border:1px solid var(--line); border-radius:6px;
@@ -204,6 +216,7 @@
 
   <!-- DRAFT SCREEN -->
   <div id="draftScreen" class="hidden">
+    <div id="youBanner" class="you-banner hidden"></div>
     <div id="turnBanner" class="turn-banner">
       <div>
         <div class="label">On the clock</div>
@@ -256,6 +269,10 @@ let state = { players: ["", "", "", ""], picks: {}, started: false };
 let setupNames = ["", "", "", ""];
 let lastStateStr = "";
 let busy = false;
+
+const urlParams = new URLSearchParams(window.location.search);
+const asParam = parseInt(urlParams.get('as'), 10);
+const myPlayerIndex = (asParam >= 1 && asParam <= 4) ? (asParam - 1) : null;
 
 function backendConfigured(){
   return APPS_SCRIPT_URL && APPS_SCRIPT_URL.indexOf("PASTE_YOUR") === -1;
@@ -340,27 +357,31 @@ async function startDraft(){
     const updated = await callBackend({ action: "start", players: JSON.stringify(names) });
     state = updated;
     lastStateStr = JSON.stringify(updated);
-    render();
   } catch(e){
     alert("Couldn't reach the backend. Check your internet connection and try again.");
   } finally {
     setBusy(false);
+    render();
   }
 }
 
 async function draftTeam(team){
   if(state.picks[team] !== undefined) return;
   if(currentPickIndex() >= totalTeams()) return;
+  if(myPlayerIndex !== null && currentPlayerIdx() !== myPlayerIndex){
+    alert("It's not your turn yet.");
+    return;
+  }
   setBusy(true);
   try{
     const updated = await callBackend({ action: "pick", team: team });
     state = updated;
     lastStateStr = JSON.stringify(updated);
-    render();
   } catch(e){
     alert("Couldn't save that pick. Check your internet connection and try again.");
   } finally {
     setBusy(false);
+    render();
   }
 }
 
@@ -373,11 +394,11 @@ async function resetDraft(){
     lastStateStr = JSON.stringify(updated);
     setupNames = ["", "", "", ""];
     renderSetupRows();
-    render();
   } catch(e){
     alert("Couldn't reach the backend. Check your internet connection and try again.");
   } finally {
     setBusy(false);
+    render();
   }
 }
 
@@ -422,6 +443,23 @@ function render(){
   const pickIdx = currentPickIndex();
   const total = totalTeams();
   const done = pickIdx >= total;
+  const myTurn = (myPlayerIndex === null) ? true : (!done && currentPlayerIdx() === myPlayerIndex);
+
+  const youBanner = document.getElementById('youBanner');
+  if(myPlayerIndex !== null){
+    youBanner.classList.remove('hidden');
+    const myName = state.players[myPlayerIndex] || ('Player ' + (myPlayerIndex+1));
+    if(done){
+      youBanner.innerHTML = 'You drafted as <strong>' + myName + '</strong>';
+    } else if(myTurn){
+      youBanner.innerHTML = "It's your turn, <strong>" + myName + '</strong> — pick a team below.';
+    } else {
+      youBanner.innerHTML = 'You\'re drafting as <strong>' + myName + '</strong> — waiting for your turn.';
+    }
+  } else {
+    youBanner.classList.add('hidden');
+  }
+
   const banner = document.getElementById('turnBanner');
   const turnName = document.getElementById('turnName');
   const pickCount = document.getElementById('pickCount');
@@ -462,8 +500,9 @@ function render(){
     div.teams.forEach(team => {
       const takenBy = state.picks[team];
       const btn = document.createElement('button');
-      btn.className = "team-btn";
-      btn.disabled = takenBy !== undefined || done || busy;
+      const isWaiting = takenBy === undefined && !done && !myTurn && !busy;
+      btn.className = "team-btn" + (isWaiting ? " waiting" : "");
+      btn.disabled = takenBy !== undefined || done || busy || !myTurn;
       btn.onclick = () => draftTeam(team);
       const swatch = '<span class="swatch" style="background:' + (TEAM_COLOR[team]||'#888') + '"></span>';
       if(takenBy !== undefined){
