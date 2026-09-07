@@ -251,6 +251,27 @@
   .roster-card .empty{font-size:0.8rem; color:var(--chalk-dim); font-style:italic; margin-top:8px;}
 
   .hidden{display:none !important;}
+
+  /* ---------- Export modal ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; z-index:50; background:rgba(0,0,0,0.6);
+    display:flex; align-items:flex-end; justify-content:center; padding:16px;
+  }
+  @media (min-width:640px){ .modal-overlay{align-items:center;} }
+  .modal-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-lg);
+    padding:20px; width:100%; max-width:520px; max-height:82vh; display:flex; flex-direction:column;
+    box-shadow:0 20px 50px rgba(0,0,0,0.4);
+  }
+  #exportTextarea{
+    flex:1; min-height:260px; width:100%; resize:vertical;
+    background:var(--bg); border:1px solid var(--line); color:var(--chalk);
+    border-radius:var(--radius-md); padding:12px; font-family:'SF Mono','Menlo',monospace;
+    font-size:0.78rem; line-height:1.5; white-space:pre;
+  }
+  .modal-actions{display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;}
+  .modal-actions .btn{width:auto; flex:1; min-width:100px;}
+  .modal-actions .btn.copied{border-color:var(--turf-bright); color:var(--turf-bright);}
 </style>
 </head>
 <body>
@@ -267,9 +288,30 @@
     <button id="viewLinksBtnTop" class="icon-btn hidden" onclick="viewLinksAgain()" aria-label="View player links">
       <svg class="icon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.07 0l1.93-1.93a5 5 0 00-7.07-7.07L10.5 5.5"/><path d="M14 11a5 5 0 00-7.07 0L4.99 12.93a5 5 0 007.07 7.07L13.5 18.5"/></svg>
     </button>
+    <button id="exportBtnTop" class="icon-btn hidden" onclick="openExportModal()" aria-label="Export results">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+    </button>
     <button id="resetBtnTop" class="icon-btn danger hidden" onclick="resetDraft()" aria-label="Reset draft">
       <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.36-3.36L23 10M1 14l5.64 4.36A9 9 0 0020.49 15"/></svg>
     </button>
+  </div>
+</div>
+
+<div id="exportModal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h2 style="font-size:1.5rem; margin-bottom:10px;">Draft results</h2>
+    <textarea id="exportTextarea" readonly></textarea>
+    <div class="modal-actions">
+      <button id="shareResultsBtn" class="btn btn-secondary hidden" onclick="shareResults()">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Share
+      </button>
+      <button id="copyResultsBtn" class="btn btn-secondary" onclick="copyResults()">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        Copy
+      </button>
+      <button class="btn-ghost" onclick="closeExportModal()">Close</button>
+    </div>
   </div>
 </div>
 
@@ -730,6 +772,85 @@ async function executeBotPick(team){
   }
 }
 
+function buildExportText(){
+  const total = totalTeams();
+  const pickOrder = Object.keys(state.picks);
+  const lines = [];
+  lines.push("DRAFT PICK'EM RESULTS");
+  if(pickOrder.length === 0){
+    lines.push("No picks made yet.");
+    return lines.join("\n");
+  }
+  if(pickOrder.length < total){
+    lines.push(pickOrder.length + " of " + total + " picks made");
+  }
+  lines.push("");
+
+  let currentRoundNum = 0;
+  pickOrder.forEach((team, i) => {
+    const r = Math.floor(i / 4) + 1;
+    if(r !== currentRoundNum){
+      if(currentRoundNum !== 0) lines.push("");
+      lines.push("Round " + r);
+      currentRoundNum = r;
+    }
+    const drafterIdx = state.picks[team];
+    const drafter = state.players[drafterIdx] || ("Player " + (drafterIdx + 1));
+    lines.push((i + 1) + ". " + drafter + " - " + team);
+  });
+
+  lines.push("");
+  lines.push("FINAL ROSTERS");
+  for(let p = 0; p < 4; p++){
+    const teams = pickOrder.filter(t => state.picks[t] === p);
+    const name = state.players[p] || ("Player " + (p + 1));
+    lines.push(name + " (" + teams.length + "): " + (teams.length ? teams.join(", ") : "none yet"));
+  }
+
+  return lines.join("\n");
+}
+
+function openExportModal(){
+  document.getElementById('exportTextarea').value = buildExportText();
+  document.getElementById('shareResultsBtn').classList.toggle('hidden', !navigator.share);
+  document.getElementById('exportModal').classList.remove('hidden');
+}
+
+function closeExportModal(){
+  document.getElementById('exportModal').classList.add('hidden');
+}
+
+async function shareResults(){
+  const text = document.getElementById('exportTextarea').value;
+  try{
+    await navigator.share({ title: "Draft Pick'em Results", text: text });
+  } catch(e){
+    // user cancelled the share sheet, or it's unsupported — nothing to do
+  }
+}
+
+function copyResults(){
+  const ta = document.getElementById('exportTextarea');
+  const btn = document.getElementById('copyResultsBtn');
+  const finish = () => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = 'Copied';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 1500);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(ta.value).then(finish).catch(() => {
+      ta.select();
+      document.execCommand('copy');
+      finish();
+    });
+  } else {
+    ta.select();
+    document.execCommand('copy');
+    finish();
+  }
+}
+
 function currentRound(){
   return Math.floor(currentPickIndex() / 4) + 1;
 }
@@ -741,6 +862,7 @@ function render(){
   const linksOnlyEl = document.getElementById('linksOnly');
   const draftEl = document.getElementById('draftScreen');
   const resetBtnTop = document.getElementById('resetBtnTop');
+  const exportBtnTop = document.getElementById('exportBtnTop');
   const viewLinksBtnTop = document.getElementById('viewLinksBtnTop');
 
   if(!state.started){
@@ -748,12 +870,14 @@ function render(){
     linksOnlyEl.classList.add('hidden');
     draftEl.classList.add('hidden');
     resetBtnTop.classList.add('hidden');
+    exportBtnTop.classList.add('hidden');
     viewLinksBtnTop.classList.add('hidden');
     renderSetupRows();
     return;
   }
   setupEl.classList.add('hidden');
   resetBtnTop.classList.remove('hidden');
+  exportBtnTop.classList.remove('hidden');
 
   const pickIdx = currentPickIndex();
   const total = totalTeams();
