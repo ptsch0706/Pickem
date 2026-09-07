@@ -648,6 +648,9 @@ async function resetDraft(){
     myName = null;
     botNames = [];
     saveBotNames();
+    linksAcknowledged = false;
+    viewingLinks = false;
+    try { localStorage.removeItem('pickem_links_ack'); } catch(e){}
     const nameInput = document.getElementById('joinNameInput');
     if(nameInput) nameInput.value = "";
     const note = document.getElementById('joinedNote');
@@ -734,18 +737,21 @@ function render(){
   document.getElementById('setupUrlWarning').classList.toggle('hidden', backendConfigured());
 
   const setupEl = document.getElementById('setup');
+  const linksOnlyEl = document.getElementById('linksOnly');
   const draftEl = document.getElementById('draftScreen');
   const resetBtnTop = document.getElementById('resetBtnTop');
+  const viewLinksBtnTop = document.getElementById('viewLinksBtnTop');
 
   if(!state.started){
     setupEl.classList.remove('hidden');
+    linksOnlyEl.classList.add('hidden');
     draftEl.classList.add('hidden');
     resetBtnTop.classList.add('hidden');
+    viewLinksBtnTop.classList.add('hidden');
     renderSetupRows();
     return;
   }
   setupEl.classList.add('hidden');
-  draftEl.classList.remove('hidden');
   resetBtnTop.classList.remove('hidden');
 
   const pickIdx = currentPickIndex();
@@ -755,23 +761,17 @@ function render(){
 
   if(!done) maybeScheduleBotPick();
 
-  const linksPanel = document.getElementById('linksPanel');
-  if(myPlayerIndex === null){
-    linksPanel.classList.remove('hidden');
-    const base = window.location.origin + window.location.pathname;
-    let html = '<div class="links-title">Player links</div><div class="links-sub">Send each person their own link so their screen only lets them pick on their turn.</div>';
-    state.players.forEach((name, i) => {
-      if(botNames.includes(name)){
-        html += '<div class="link-row"><span class="lname">' + cpuBadge() + name + '</span><span class="cpu-note">Picks automatically</span></div>';
-      } else {
-        const link = base + '?as=' + (i+1);
-        html += '<div class="link-row"><span class="lname">' + name + '</span><input type="text" readonly value="' + link + '" onclick="this.select()"><button class="copy-btn" onclick="copyLink(this, \'' + link + '\')">' + ICON_COPY + ' Copy</button></div>';
-      }
-    });
-    linksPanel.innerHTML = html;
-  } else {
-    linksPanel.classList.add('hidden');
+  const showLinksScreen = (myPlayerIndex === null) && (viewingLinks || !linksAcknowledged);
+  viewLinksBtnTop.classList.toggle('hidden', myPlayerIndex !== null || showLinksScreen);
+
+  if(showLinksScreen){
+    linksOnlyEl.classList.remove('hidden');
+    draftEl.classList.add('hidden');
+    document.getElementById('linksOnlyList').innerHTML = buildLinksHtml();
+    return;
   }
+  linksOnlyEl.classList.add('hidden');
+  draftEl.classList.remove('hidden');
 
   const youBanner = document.getElementById('youBanner');
   if(myPlayerIndex !== null){
