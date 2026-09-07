@@ -251,6 +251,9 @@
     <div class="subtitle">Live snake draft &middot; synced for everyone</div>
   </div>
   <div class="appbar-actions">
+    <button id="viewLinksBtnTop" class="icon-btn hidden" onclick="viewLinksAgain()" aria-label="View player links">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.07 0l1.93-1.93a5 5 0 00-7.07-7.07L10.5 5.5"/><path d="M14 11a5 5 0 00-7.07 0L4.99 12.93a5 5 0 007.07 7.07L13.5 18.5"/></svg>
+    </button>
     <button id="resetBtnTop" class="icon-btn danger hidden" onclick="resetDraft()" aria-label="Reset draft">
       <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.36-3.36L23 10M1 14l5.64 4.36A9 9 0 0020.49 15"/></svg>
     </button>
@@ -300,9 +303,16 @@
       </div>
     </div>
 
+    <!-- LINKS-ONLY SCREEN (shown once, right after the draft starts) -->
+    <div id="linksOnly" class="card links-panel hidden" style="padding:22px;">
+      <h2 style="font-size:1.6rem; margin-bottom:4px;">Draft started</h2>
+      <p class="lobby-intro">Send each player their own link below. Their screen will only let them pick when it's actually their turn.</p>
+      <div id="linksOnlyList"></div>
+      <button class="btn btn-primary" style="margin-top:18px;" onclick="acknowledgeLinks()">Continue to draft board</button>
+    </div>
+
     <!-- DRAFT SCREEN -->
     <div id="draftScreen" class="hidden">
-      <div id="linksPanel" class="card banner-you links-panel hidden" style="padding:16px;"></div>
       <div id="youBanner" class="banner banner-you hidden"></div>
       <div id="turnBanner" class="turn-banner">
         <div>
@@ -399,6 +409,36 @@ function saveBotNames(){
   try { localStorage.setItem('pickem_bot_names', JSON.stringify(botNames)); } catch(e){}
 }
 let botPickScheduled = false;
+
+let linksAcknowledged = false;
+try { linksAcknowledged = localStorage.getItem('pickem_links_ack') === '1'; } catch(e){ linksAcknowledged = false; }
+let viewingLinks = false;
+
+function acknowledgeLinks(){
+  linksAcknowledged = true;
+  viewingLinks = false;
+  try { localStorage.setItem('pickem_links_ack', '1'); } catch(e){}
+  render();
+}
+
+function viewLinksAgain(){
+  viewingLinks = true;
+  render();
+}
+
+function buildLinksHtml(){
+  const base = window.location.origin + window.location.pathname;
+  let html = '<div class="links-sub" style="margin-bottom:12px;">Send each person their own link so their screen only lets them pick on their turn.</div>';
+  state.players.forEach((name, i) => {
+    if(botNames.includes(name)){
+      html += '<div class="link-row"><span class="lname">' + cpuBadge() + name + '</span><span class="cpu-note">Picks automatically</span></div>';
+    } else {
+      const link = base + '?as=' + (i+1);
+      html += '<div class="link-row"><span class="lname">' + name + '</span><input type="text" readonly value="' + link + '" onclick="this.select()"><button class="copy-btn" onclick="copyLink(this, \'' + link + '\')">' + ICON_COPY + ' Copy</button></div>';
+    }
+  });
+  return html;
+}
 
 function cpuBadge(){
   return '<span class="cpu-badge">CPU</span>';
