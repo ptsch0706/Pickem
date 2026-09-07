@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0f1b14">
 <title>Draft Pick'em</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Teko:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg: #0f1b14;
@@ -53,9 +53,19 @@
     padding: calc(14px + var(--safe-top)) 16px 12px;
     display:flex; align-items:center; justify-content:space-between; gap:10px;
   }
-  .appbar .title{font-size:1.9rem; line-height:1; color:var(--chalk); display:flex; align-items:baseline; gap:6px;}
-  .appbar .title .accent{color:var(--turf-bright);}
-  .appbar .subtitle{font-size:0.72rem; color:var(--chalk-dim); margin-top:2px;}
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand-mark{
+    width:34px; height:34px; border-radius:9px; flex-shrink:0;
+    background:var(--gold); color:var(--gold-ink);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Anton', sans-serif; font-size:1.15rem; line-height:1;
+  }
+  .brand-name{
+    font-family:'Anton', sans-serif; font-weight:400; text-transform:uppercase;
+    font-size:1.5rem; line-height:1; letter-spacing:0.01em; color:var(--chalk);
+  }
+  .brand-name .accent{color:var(--turf-bright);}
+  .appbar .subtitle{font-size:0.72rem; color:var(--chalk-dim); margin-top:3px; letter-spacing:0.02em;}
   .appbar-actions{display:flex; gap:6px;}
 
   .icon-btn{
@@ -246,9 +256,12 @@
 <body>
 
 <div class="appbar">
-  <div>
-    <div class="title">Draft<span class="accent">&nbsp;Pick'em</span></div>
-    <div class="subtitle">Live snake draft &middot; synced for everyone</div>
+  <div class="brand">
+    <div class="brand-mark">P</div>
+    <div>
+      <div class="brand-name">Draft<span class="accent">&nbsp;Pick'em</span></div>
+      <div class="subtitle">Live snake draft &middot; synced for everyone</div>
+    </div>
   </div>
   <div class="appbar-actions">
     <button id="viewLinksBtnTop" class="icon-btn hidden" onclick="viewLinksAgain()" aria-label="View player links">
